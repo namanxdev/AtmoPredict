@@ -44,7 +44,7 @@ export default function LeftPanel({ coords, date, onLocationChange, onDateChange
         }}>
           <strong>⚠️ Error:</strong> {error}
           <div style={{ fontSize: '12px', marginTop: '10px', opacity: 0.8 }}>
-            Please ensure the backend server is running at http://127.0.0.1:8081
+            Please ensure the backend server is running at http://127.0.0.1:8000
           </div>
         </div>
       )}

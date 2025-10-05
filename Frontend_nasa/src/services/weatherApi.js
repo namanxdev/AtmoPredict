@@ -32,7 +32,7 @@ apiClient.interceptors.response.use(
       console.error('❌ API Error Response:', error.response.status, error.response.data);
     } else if (error.request) {
       console.error('❌ No Response from Server:', error.config.url);
-      console.error('   Is the backend running? Check http://127.0.0.1:8081');
+      console.error('   Is the backend running? Check http://127.0.0.1:8000');
     } else {
       console.error('❌ Request Setup Error:', error.message);
     }
