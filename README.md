@@ -1,10 +1,11 @@
 # 🌍 AtmoPredict - Extreme Weather Forecasting System
 
-> An intelligent weather prediction system using machine learning to forecast extreme weather conditions with NASA POWER data
+> An intelligent weather prediction system using **LSTM deep learning** to forecast extreme weather conditions with NASA POWER data
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19.1+-61DAFB.svg)](https://reactjs.org/)
+[![TensorFlow](https://img.shields.io/badge/TensorFlow-2.15+-orange.svg)](https://www.tensorflow.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ## 📋 Table of Contents
@@ -22,7 +23,7 @@
 
 ## 🎯 Overview
 
-**AtmoPredict** is an advanced weather forecasting system that predicts the probability of five extreme weather conditions:
+**AtmoPredict** is an advanced weather forecasting system that uses a **trained LSTM (Long Short-Term Memory) deep learning model** to predict climate anomalies and extreme weather conditions:
 
 - 🔥 **Very Hot** - High temperature events
 - ❄️ **Very Cold** - Low temperature events
@@ -30,19 +31,19 @@
 - 🌧️ **Very Wet** - Heavy precipitation events
 - 🥵 **Very Uncomfortable** - High heat index conditions
 
-The system uses machine learning models trained on historical NASA POWER weather data (2010-2023) and provides real-time predictions through an interactive web interface.
+The system uses an **LSTM neural network** trained on historical NASA POWER weather data (2010-2024) to predict **temperature and precipitation anomalies**, which are then converted to extreme weather probabilities. Predictions are delivered through an interactive web interface.
 
 ## ✨ Features
 
-### 🤖 Machine Learning
-- **Multiple ML Models**: Logistic Regression, Random Forest, XGBoost, LightGBM
-- **Automatic Model Selection**: Best model chosen based on validation ROC-AUC
-- **Advanced Feature Engineering**: 100+ engineered features including:
-  - Temporal patterns (day, month, season)
-  - Lag features (1, 2, 3, 7 days)
-  - Rolling statistics (3, 7, 14, 30-day windows)
-  - Trend analysis and historical comparisons
-  - Interaction features
+### 🤖 LSTM Deep Learning Model
+- **LSTM Neural Network**: Advanced time-series prediction using TensorFlow/Keras
+- **Climate Anomaly Prediction**: Forecasts temperature and precipitation anomalies
+- **Model Performance**: 
+  - Temperature Anomaly: R² = 0.35, RMSE = 0.107
+  - Precipitation Anomaly: R² = 0.79, RMSE = 0.237
+- **18 Input Features**: Including temporal patterns, weather parameters, and location data
+- **Trained on NASA POWER Data**: 2010-2024, 10 major global cities
+- **Automatic Probability Conversion**: Converts anomalies to extreme weather probabilities
 
 ### 🌐 Web Interface
 - **Modern React UI** with Tailwind CSS and DaisyUI
@@ -53,17 +54,17 @@ The system uses machine learning models trained on historical NASA POWER weather
 
 ### 🚀 Backend API
 - **FastAPI** for high-performance async operations
+- **LSTM Model Integration** for intelligent predictions
 - **RESTful Endpoints** for forecasting and climate data
 - **Automatic Documentation** with Swagger UI
 - **CORS Enabled** for cross-origin requests
 - **Health Check** and monitoring endpoints
 
-### 📊 Model Evaluation
-- **ROC-AUC & PR-AUC** metrics
-- **Calibration Curves** for probability reliability
-- **Confusion Matrices** and classification reports
-- **Feature Importance** analysis
-- **Comprehensive Visualizations** saved as PNG files
+### 📊 Data Sources
+- **NASA POWER API** - Historical climate data (2010-2024)
+- **OpenWeatherMap API** - Real-time current weather
+- **Continental Climate Patterns** - Long-term forecasting (6 months)
+- **Hemisphere Data** - Global climate context
 
 ## 🛠 Technology Stack
 
@@ -71,9 +72,9 @@ The system uses machine learning models trained on historical NASA POWER weather
 - **Python 3.8+** - Core programming language
 - **FastAPI** - Modern async web framework
 - **Uvicorn** - ASGI server
-- **scikit-learn** - Classical ML algorithms
-- **XGBoost** - Gradient boosting framework
-- **LightGBM** - Fast gradient boosting
+- **TensorFlow 2.15+** - Deep learning framework
+- **Keras 3.0+** - Neural network API
+- **scikit-learn** - Data preprocessing and utilities
 - **pandas/numpy** - Data manipulation
 
 ### Frontend
@@ -87,9 +88,10 @@ The system uses machine learning models trained on historical NASA POWER weather
 
 ### Data Source
 - **NASA POWER API** - Global weather and solar data
-- **Coverage**: 2010-2023 historical data
-- **Resolution**: Daily temporal granularity
-- **Parameters**: Temperature, precipitation, wind, humidity, pressure, cloud cover
+- **OpenWeatherMap API** - Real-time weather data
+- **Coverage**: 2010-2024 historical data
+- **Resolution**: Daily/Monthly temporal granularity
+- **Parameters**: Temperature, precipitation, wind, humidity, pressure, cloud cover, radiation
 
 ## 🏗 System Architecture
 
@@ -107,25 +109,33 @@ The system uses machine learning models trained on historical NASA POWER weather
 │                   http://127.0.0.1:8000                     │
 │  ┌────────────────────────────────────────────────────┐    │
 │  │  Endpoints:                                         │    │
-│  │  • POST /forecast/hybrid  - Main forecast          │    │
-│  │  • POST /forecast         - Compatibility wrapper  │    │
+│  │  • POST /predict          - LSTM predictions       │    │
+│  │  • POST /forecast/hybrid  - Hybrid forecasts       │    │
+│  │  • POST /forecast         - Long-term forecasts    │    │
 │  │  • GET  /climate/summary  - Climate information    │    │
 │  │  • GET  /docs             - API documentation      │    │
 │  │  • GET  /health           - Health check           │    │
+│  │  • GET  /model/info       - LSTM model info        │    │
 │  └────────────────────────────────────────────────────┘    │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                  MACHINE LEARNING MODELS                     │
-│                  (models/trained/*.pkl)                      │
+│              LSTM DEEP LEARNING MODEL                        │
+│              (ml nasa/models/climate_lstm_model.keras)      │
 │  ┌────────────────────────────────────────────────────┐    │
-│  │  5 Binary Classifiers:                              │    │
-│  │  • very_hot_model.pkl                               │    │
-│  │  • very_cold_model.pkl                              │    │
-│  │  • very_windy_model.pkl                             │    │
-│  │  • very_wet_model.pkl                               │    │
-│  │  • very_uncomfortable_model.pkl                     │    │
+│  │  LSTM Neural Network:                               │    │
+│  │  • Input: 18 features (weather + temporal)         │    │
+│  │  • Output: 2 predictions                           │    │
+│  │    - Temperature Anomaly                           │    │
+│  │    - Precipitation Anomaly                         │    │
+│  │                                                     │    │
+│  │  Converted to 5 Extreme Weather Probabilities:     │    │
+│  │  • very_hot          (hot temperature events)      │    │
+│  │  • very_cold         (cold temperature events)     │    │
+│  │  • very_windy        (high wind conditions)        │    │
+│  │  • very_wet          (heavy precipitation)         │    │
+│  │  • very_uncomfortable (high heat index)            │    │
 │  └────────────────────────────────────────────────────┘    │
 └──────────────────────────┬──────────────────────────────────┘
                            │
@@ -133,10 +143,11 @@ The system uses machine learning models trained on historical NASA POWER weather
 ┌─────────────────────────────────────────────────────────────┐
 │                    DATA SOURCES                              │
 │                                                              │
-│  • Historical Weather Data (data/processed/)                │
-│  • NASA POWER API (for new data)                            │
+│  • NASA POWER API (historical 2010-2024)                    │
+│  • OpenWeatherMap API (current weather)                     │
+│  • Continental Climate Patterns (data/continents/)          │
+│  • Hemisphere Data (data/hemispheres/)                      │
 │  • Location Mappings (data/location_mapping.json)           │
-│  • Continental/Hemisphere Data                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -340,38 +351,85 @@ Response:
 
 ## 🤖 Model Details
 
-### Training Process
+### LSTM Neural Network Architecture
 
-1. **Data Collection** (`src/data_collection.py`)
-   - Fetches historical weather data from NASA POWER API
-   - Covers 2010-2023 timeframe
-   - Multiple global locations
+The system uses a trained **LSTM (Long Short-Term Memory)** deep learning model for climate prediction:
 
-2. **Feature Engineering** (`src/feature_engineering.py`)
-   - Creates 100+ features from raw data
-   - Temporal, lag, rolling, trend, and interaction features
-   - Handles missing values and outliers
+#### Model Specifications
+- **Type**: LSTM Neural Network (TensorFlow/Keras)
+- **Input Shape**: (timesteps=1, features=18)
+- **Output Shape**: 2 predictions (temperature anomaly, precipitation anomaly)
+- **Training Data**: NASA POWER climate data (2010-2024)
+- **Locations**: 10 major global cities
+- **Total Samples**: ~1,800 data points
 
-3. **Model Training** (`src/train_models.py`)
-   - Trains 4 models per target (Logistic Regression, Random Forest, XGBoost, LightGBM)
-   - Chronological train/validation/test split (60%/20%/20%)
-   - Handles class imbalance with weighted classes
-   - Selects best model based on ROC-AUC
+#### Performance Metrics
+- **Temperature Anomaly Prediction**:
+  - R² Score: 0.35
+  - RMSE: 0.107
+  - MAE: 0.085
+  
+- **Precipitation Anomaly Prediction**:
+  - R² Score: 0.79
+  - RMSE: 0.237
+  - MAE: 0.178
 
-4. **Evaluation** (`src/evaluate.py`)
-   - Comprehensive metrics (ROC-AUC, PR-AUC, Brier Score)
-   - Visualizations saved to `evaluation_results/`
-   - Feature importance analysis
+#### Input Features (18 total)
+1. **Weather Parameters** (scaled):
+   - T2M (mean temperature)
+   - T2M_MAX (maximum temperature)
+   - T2M_MIN (minimum temperature)
+   - PRECTOTCORR (precipitation, log-transformed)
+   - ALLSKY_SFC_SW_DWN (solar radiation)
+   - RH2M (relative humidity)
+   - QV2M (specific humidity)
+   - T2M_range (temperature range)
 
-### Extreme Condition Definitions
+2. **Temporal Features**:
+   - month_sin (cyclical month encoding)
+   - month_cos (cyclical month encoding)
+   - season (encoded)
 
-Based on historical percentiles from 2010-2023 data:
+3. **Location Features**:
+   - latitude (scaled)
+   - longitude (scaled)
 
-- **Very Hot**: Temperature > 95th percentile for location
-- **Very Cold**: Temperature < 5th percentile for location
-- **Very Windy**: Wind speed > 90th percentile for location
-- **Very Wet**: Precipitation > 90th percentile for location
-- **Very Uncomfortable**: Heat index > 95th percentile for location
+4. **Derived Features**:
+   - precip_log (log-transformed precipitation)
+   - heat_index components
+
+#### Prediction Pipeline
+
+```
+Input Weather Data
+        ↓
+Feature Extraction (18 features)
+        ↓
+Feature Scaling (StandardScaler)
+        ↓
+LSTM Model Inference
+        ↓
+Output: [temp_anomaly, precip_anomaly]
+        ↓
+Probability Conversion
+        ↓
+5 Extreme Weather Probabilities:
+  • very_hot (0.0 - 1.0)
+  • very_cold (0.0 - 1.0)
+  • very_windy (0.0 - 1.0)
+  • very_wet (0.0 - 1.0)
+  • very_uncomfortable (0.0 - 1.0)
+```
+
+#### Anomaly to Probability Conversion
+
+The LSTM model predicts **temperature and precipitation anomalies** (deviations from normal). These are converted to extreme weather probabilities using:
+
+1. **Very Hot**: Based on adjusted temperature (base_temp + anomaly) and positive temperature anomaly
+2. **Very Cold**: Based on adjusted temperature and negative temperature anomaly
+3. **Very Wet**: Based on adjusted precipitation (base_precip × (1 + anomaly)) and positive precipitation anomaly
+4. **Very Windy**: Based on current wind speed measurements
+5. **Very Uncomfortable**: Based on calculated heat index (temperature + humidity interaction)
 
 ### Risk Level Calculation
 
@@ -384,6 +442,13 @@ elif max_probability >= 0.4: risk_level = "MODERATE"
 elif max_probability >= 0.2: risk_level = "LOW"
 else:                        risk_level = "MINIMAL"
 ```
+
+### Model Files Location
+
+- **LSTM Model**: `ml nasa/models/climate_lstm_model.keras` (3.79 MB)
+- **Feature Scaler**: `ml nasa/models/lstm_scaler.pkl`
+- **Model Metadata**: `ml nasa/models/lstm_model_metadata.json`
+- **Model Configuration**: `ml nasa/data/model_configuration.json`
 
 ## 📁 Project Structure
 
@@ -399,15 +464,13 @@ AtmoPredict/
 ├── 🚀 INSTALL_FIRST.bat             # Installation script
 ├── 🚀 START_COMPLETE_SYSTEM.bat     # Start entire system
 ├── 🚀 START_HYBRID_API.bat          # Start backend only
-├── 🚀 RETRAIN_MODELS.bat            # Retrain ML models
 │
 ├── 📂 src/                           # Backend source code
 │   ├── __init__.py
-│   ├── api.py                        # Main FastAPI application
+│   ├── api.py                        # Main FastAPI application (LSTM integrated)
+│   ├── lstm_model_loader.py          # LSTM model loader and predictor
 │   ├── data_collection.py            # NASA API data fetching
 │   ├── feature_engineering.py        # Feature creation
-│   ├── train_models.py               # Model training
-│   ├── evaluate.py                   # Model evaluation
 │   ├── data_router.py                # Location data routing
 │   └── climate_service.py            # Climate information service
 │
@@ -430,51 +493,79 @@ AtmoPredict/
 │   │       └── constants.js          # Configuration constants
 │   └── public/                       # Static assets
 │
-├── 📂 data/                          # Data storage
+├── 📂 ml nasa/                       # LSTM Model & Training Pipeline
+│   ├── local_inference.py            # Run LSTM predictions locally
+│   ├── main_pipeline.py              # Data collection pipeline
+│   ├── cleaning_pipeline.py          # Data cleaning workflow
+│   ├── test_project.py               # Comprehensive tests
+│   ├── models/                       # Trained models
+│   │   ├── climate_lstm_model.keras  # 🤖 Main LSTM model (3.79 MB)
+│   │   ├── lstm_scaler.pkl           # Feature scaler
+│   │   ├── lstm_model_metadata.json  # Performance metrics
+│   │   └── lstm_training_history.pkl # Training logs
+│   ├── data/                         # Training data
+│   │   ├── climate_model_ready_transformed.csv
+│   │   ├── model_configuration.json  # Feature configuration
+│   │   └── locations_major_cities.csv
+│   └── src/                          # Pipeline modules
+│       ├── location_grid.py
+│       ├── data_fetcher.py
+│       └── data_processor.py
+│
+├── 📂 data/                          # Climate pattern data
 │   ├── location_mapping.json         # Location metadata
 │   ├── continents/                   # Continental climate data
-│   ├── hemispheres/                  # Hemisphere climate data
-│   └── raw/                          # Raw weather data (when collected)
-│
-├── 📂 models/                        # Trained ML models
-│   └── trained/                      # Serialized model files
-│       ├── very_hot_model.pkl
-│       ├── very_cold_model.pkl
-│       ├── very_windy_model.pkl
-│       ├── very_wet_model.pkl
-│       └── very_uncomfortable_model.pkl
-│
-├── 📂 evaluation_results/            # Model evaluation outputs
-│   ├── evaluation_summary.json       # Metrics summary
-│   ├── *_roc_curve.png              # ROC curves
-│   ├── *_pr_curve.png               # Precision-Recall curves
-│   ├── *_calibration.png            # Calibration plots
-│   ├── *_confusion_matrix.png       # Confusion matrices
-│   └── *_feature_importance.png     # Feature importance plots
+│   │   ├── asia.json
+│   │   ├── europe.json
+│   │   ├── north_america.json
+│   │   ├── south_america.json
+│   │   ├── africa.json
+│   │   ├── australia.json
+│   │   └── antarctica.json
+│   └── hemispheres/                  # Hemisphere climate data
+│       ├── northern_hemisphere.json
+│       └── southern_hemisphere.json
 │
 └── 📂 FloatChatMap/                  # Additional dashboard tools
     └── ...                           # Climate visualization tools
 ```
 
-## 🔄 Retraining Models
+## 🔄 LSTM Model Information
 
-To retrain the models with updated data:
+The LSTM model is **pre-trained** on NASA POWER climate data (2010-2024). The model files are located in `ml nasa/models/`:
+
+- **Model File**: `climate_lstm_model.keras` (3.79 MB)
+- **Scaler**: `lstm_scaler.pkl`
+- **Metadata**: `lstm_model_metadata.json`
+- **Configuration**: `../data/model_configuration.json`
+
+### Running Local Inference
+
+To test the LSTM model independently:
 
 ```bash
-# Use batch file (Windows)
-RETRAIN_MODELS.bat
-
-# Or manual command
-python src/train_models.py
-python src/evaluate.py
+cd "ml nasa"
+python local_inference.py
 ```
 
-This will:
-1. Load the latest weather data
-2. Engineer features
-3. Train all models
-4. Evaluate performance
-5. Save best models and visualizations
+This generates predictions for all samples and creates visualizations in `ml nasa/results/`.
+
+### Model Training (Advanced)
+
+The model was trained using Google Colab with the data collection pipeline. To retrain (advanced users):
+
+```bash
+cd "ml nasa"
+
+# 1. Collect new data
+python main_pipeline.py --grid cities --start 2010 --end 2024
+
+# 2. Clean and process data
+python cleaning_pipeline.py
+
+# 3. Train model (requires Google Colab or local GPU)
+# See ml nasa/README.md for detailed training instructions
+```
 
 ## 🧪 Testing
 
@@ -518,16 +609,20 @@ The interface adapts to different screen sizes, from mobile phones to desktop mo
 
 ## 🔮 Future Enhancements
 
+- [ ] Enhanced LSTM model with attention mechanisms
+- [ ] Multi-timestep predictions (sequence forecasting)
 - [ ] Real-time NASA data integration
 - [ ] Extended forecast range (14+ days)
-- [ ] Historical trend comparison
+- [ ] Ensemble model combining LSTM with traditional ML
+- [ ] Historical trend comparison and visualization
 - [ ] Email/SMS alerts for extreme conditions
 - [ ] Mobile app (React Native)
 - [ ] User accounts and saved locations
-- [ ] Advanced ensemble models
-- [ ] Integration with more weather data sources
+- [ ] Integration with more weather data sources (ERA5, MERRA-2)
 - [ ] Multi-language support
 - [ ] Export reports as PDF
+- [ ] Model explainability (SHAP, LIME)
+- [ ] Transfer learning for regional models
 
 ## 🤝 Contributing
 
