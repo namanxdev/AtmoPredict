@@ -17,13 +17,14 @@ import requests
 from datetime import datetime, timedelta
 from src.climate_service import get_climate_service
 from src.data_router import get_data_router
+from src.lstm_model_loader import get_lstm_loader
 import calendar
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Extreme Weather Prediction API - Intelligent Routing",
-    description="Routes predictions between Weather API (0-5 days) and Local Climate Data (6+ months)",
-    version="3.0.0"
+    title="Extreme Weather Prediction API - LSTM Enhanced",
+    description="Uses LSTM climate model for predictions with intelligent data routing",
+    version="4.0.0"
 )
 
 # Enable CORS
@@ -67,6 +68,18 @@ except Exception as e:
     print(f"⚠️ Data Router initialization warning: {e}")
     data_router = None
 
+# Initialize LSTM model loader
+try:
+    lstm_loader = get_lstm_loader()
+    print("✅ LSTM Model Loader initialized successfully")
+    if lstm_loader.loaded:
+        print(f"   - Model type: {lstm_loader.metadata.get('model_type', 'LSTM')}")
+        print(f"   - Features: {lstm_loader.metadata.get('n_features', 'Unknown')}")
+        print(f"   - Temperature R²: {lstm_loader.metadata.get('r2_temperature', 0):.4f}")
+except Exception as e:
+    print(f"⚠️ LSTM Model initialization warning: {e}")
+    lstm_loader = None
+
 
 class PredictionRequest(BaseModel):
     """Request model for predictions"""
@@ -83,6 +96,7 @@ class PredictionResponse(BaseModel):
     risk_level: str
     timestamp: str
     data_source: str
+    weather: Optional[Dict[str, float]] = None  # Add weather info including predicted temp
 
 
 class ForecastRequest(BaseModel):
@@ -478,57 +492,58 @@ class EnhancedFeatureBuilder:
         return all_features
 
 
-class ModelLoader:
-    """Loads and manages trained models"""
-    
-    def __init__(self):
-        self.models = {}
-        self.scalers = {}
-        self.feature_names = []
-        self.metadata = {}
-        self.model_dir = config['api']['model_path']
-        
-        self.load_models()
-    
-    def load_models(self):
-        """Load all trained models"""
-        metadata_path = os.path.join(self.model_dir, "metadata.json")
-        
-        if not os.path.exists(metadata_path):
-            raise FileNotFoundError("Model metadata not found. Train models first.")
-        
-        with open(metadata_path, 'r') as f:
-            self.metadata = json.load(f)
-        
-        # Load feature names
-        feature_path = os.path.join(self.model_dir, "feature_names.pkl")
-        self.feature_names = joblib.load(feature_path)
-        
-        # Load each target's model
-        for target in self.metadata['targets']:
-            best_model_name = self.metadata['model_performance'][target]['best_model']
-            
-            # Load model
-            model_path = os.path.join(self.model_dir, f"{target}_{best_model_name}.pkl")
-            self.models[target] = joblib.load(model_path)
-            
-            # Load scaler if exists
-            scaler_path = os.path.join(self.model_dir, f"{target}_{best_model_name}_scaler.pkl")
-            if os.path.exists(scaler_path):
-                self.scalers[target] = joblib.load(scaler_path)
-            else:
-                self.scalers[target] = None
-        
-        print(f"✓ Loaded models for {len(self.models)} targets")
+# Legacy ModelLoader - Commented out, now using LSTM Model
+# class ModelLoader:
+#     """Loads and manages trained models"""
+#     
+#     def __init__(self):
+#         self.models = {}
+#         self.scalers = {}
+#         self.feature_names = []
+#         self.metadata = {}
+#         self.model_dir = config['api']['model_path']
+#         
+#         self.load_models()
+#     
+#     def load_models(self):
+#         """Load all trained models"""
+#         metadata_path = os.path.join(self.model_dir, "metadata.json")
+#         
+#         if not os.path.exists(metadata_path):
+#             raise FileNotFoundError("Model metadata not found. Train models first.")
+#         
+#         with open(metadata_path, 'r') as f:
+#             self.metadata = json.load(f)
+#         
+#         # Load feature names
+#         feature_path = os.path.join(self.model_dir, "feature_names.pkl")
+#         self.feature_names = joblib.load(feature_path)
+#         
+#         # Load each target's model
+#         for target in self.metadata['targets']:
+#             best_model_name = self.metadata['model_performance'][target]['best_model']
+#             
+#             # Load model
+#             model_path = os.path.join(self.model_dir, f"{target}_{best_model_name}.pkl")
+#             self.models[target] = joblib.load(model_path)
+#             
+#             # Load scaler if exists
+#             scaler_path = os.path.join(self.model_dir, f"{target}_{best_model_name}_scaler.pkl")
+#             if os.path.exists(scaler_path):
+#                 self.scalers[target] = joblib.load(scaler_path)
+#             else:
+#                 self.scalers[target] = None
+#         
+#         print(f"✓ Loaded models for {len(self.models)} targets")
 
 
-# Initialize model loader
-try:
-    model_loader = ModelLoader()
-except Exception as e:
-    print(f"Warning: Could not load models - {e}")
-    print("Models need to be trained first. Run train_models.py")
-    model_loader = None
+# Legacy model loader - Commented out, now using LSTM
+# try:
+#     model_loader = ModelLoader()
+# except Exception as e:
+#     print(f"Warning: Could not load models - {e}")
+#     print("Models need to be trained first. Run train_models.py")
+#     model_loader = None
 
 
 def assess_risk_level(predictions: Dict[str, float]) -> str:
@@ -551,22 +566,24 @@ def assess_risk_level(predictions: Dict[str, float]) -> str:
 async def root():
     """Root endpoint"""
     return {
-        "message": "Extreme Weather Prediction API - Enhanced",
-        "version": "2.0.0",
+        "message": "Extreme Weather Prediction API - LSTM Enhanced",
+        "version": "4.0.0",
+        "model": "LSTM Climate Prediction Model",
         "features": [
-            "Real-time NASA data fetching",
-            "Automatic feature engineering",
+            "LSTM-based climate anomaly predictions",
+            "Temperature and precipitation anomaly forecasting",
+            "Extreme weather probability estimation",
             "Hybrid forecasting (Weather API + Climate Patterns)",
             "Short-term forecasts (1-5 days)",
             "Long-term forecasts (6 months)"
         ],
         "endpoints": {
-            "predict": "/predict",
-            "forecast_hybrid": "/forecast/hybrid",
-            "forecast": "/forecast",
-            "climate_summary": "/climate/summary",
-            "health": "/health",
-            "model_info": "/model/info"
+            "predict": "/predict - LSTM-based extreme weather predictions",
+            "forecast_hybrid": "/forecast/hybrid - Hybrid short/long-term forecasts",
+            "forecast": "/forecast - 6-month climate forecasts",
+            "climate_summary": "/climate/summary - Regional climate information",
+            "health": "/health - System health check",
+            "model_info": "/model/info - LSTM model details"
         }
     }
 
@@ -576,7 +593,8 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "models_loaded": model_loader is not None,
+        "lstm_model_loaded": lstm_loader is not None and lstm_loader.loaded if lstm_loader else False,
+        "data_router_loaded": data_router is not None,
         "timestamp": datetime.now().isoformat()
     }
 
@@ -584,14 +602,22 @@ async def health_check():
 @app.get("/model/info")
 async def model_info():
     """Get model information"""
-    if model_loader is None:
-        raise HTTPException(status_code=503, detail="Models not loaded")
+    if lstm_loader is None or not lstm_loader.loaded:
+        raise HTTPException(status_code=503, detail="LSTM model not loaded")
     
     return {
-        "targets": model_loader.metadata['targets'],
-        "feature_count": model_loader.metadata['feature_count'],
-        "trained_date": model_loader.metadata['trained_date'],
-        "performance": model_loader.metadata['model_performance']
+        "model_type": lstm_loader.metadata.get('model_type', 'LSTM'),
+        "feature_count": lstm_loader.metadata.get('n_features', 0),
+        "target_count": lstm_loader.metadata.get('n_targets', 2),
+        "trained_date": lstm_loader.metadata.get('trained_date', 'Unknown'),
+        "performance": {
+            "temperature_r2": lstm_loader.metadata.get('r2_temperature', 0),
+            "precipitation_r2": lstm_loader.metadata.get('r2_precipitation', 0),
+            "test_rmse": lstm_loader.metadata.get('test_rmse', 0)
+        },
+        "predictions": [
+            "very_hot", "very_cold", "very_windy", "very_wet", "very_uncomfortable"
+        ]
     }
 
 
@@ -742,12 +768,138 @@ async def get_current_weather(lat: float, lon: float):
         raise HTTPException(status_code=500, detail=f"Error fetching weather: {str(e)}")
 
 
+# Cache for NASA POWER historical data (in-memory cache for performance)
+_climate_baseline_cache = {}
+
+async def get_historical_baseline_from_api(lat: float, lon: float, target_date: str) -> Dict:
+    """
+    Get historical climate baseline using NASA POWER API
+    Fetches actual historical averages for the target month from past years
+    Uses caching to improve performance for repeated requests
+    
+    Args:
+        lat: Latitude of location
+        lon: Longitude of location
+        target_date: Target date in YYYY-MM-DD format (future date)
+        
+    Returns:
+        Historical climate data dict for the target month
+    """
+    from datetime import datetime, timedelta
+    
+    target = datetime.strptime(target_date, '%Y-%m-%d')
+    target_month = target.month
+    
+    # Round coordinates for cache key (0.5 degree resolution)
+    lat_rounded = round(lat * 2) / 2  # Round to nearest 0.5
+    lon_rounded = round(lon * 2) / 2
+    cache_key = f"{lat_rounded},{lon_rounded},{target_month}"
+    
+    # Check cache first
+    if cache_key in _climate_baseline_cache:
+        cached_data = _climate_baseline_cache[cache_key]
+        print(f"📦 Using cached baseline for month {target_month}: {cached_data['temperature']:.1f}°C")
+        return cached_data
+    
+    try:
+        print(f"📅 Fetching NASA POWER historical climate for month {target_month}...")
+        
+        # Fetch historical data for target month from previous year
+        # Use 2024 data as reference (most recent complete year)
+        end_date = datetime(2024, target_month, 15)
+        start_date = end_date - timedelta(days=30)  # Get ~1 month of data
+        
+        # Fetch historical NASA data
+        df = NASADataFetcher.fetch_historical_data(
+            latitude=lat,
+            longitude=lon, 
+            end_date_str=end_date.strftime('%Y-%m-%d'),
+            days_back=30
+        )
+        
+        if df is not None and not df.empty:
+            # Calculate average climate conditions for this month
+            avg_temp = df['T2M'].mean()
+            avg_temp_max = df['T2M_MAX'].mean()
+            avg_temp_min = df['T2M_MIN'].mean()
+            avg_humidity = df['RH2M'].mean()
+            avg_wind = df['WS2M'].mean()
+            avg_precip = df['PRECTOTCORR'].mean()
+            avg_pressure = df['PS'].mean() if 'PS' in df.columns else 1013.0
+            
+            print(f"   ✓ NASA POWER: {avg_temp:.1f}°C average for month {target_month}")
+            
+            baseline_data = {
+                "temperature": avg_temp,
+                "temp_max": avg_temp_max,
+                "temp_min": avg_temp_min,
+                "humidity": avg_humidity,
+                "wind_speed": avg_wind,
+                "precipitation": avg_precip,
+                "pressure": avg_pressure,
+                "specific_humidity": avg_humidity / 100 * 10,
+                "radiation": 200.0,
+                "data_source": f"📊 NASA POWER Historical (month {target_month})"
+            }
+            
+            # Cache the result
+            _climate_baseline_cache[cache_key] = baseline_data
+            
+            return baseline_data
+        else:
+            raise Exception("No NASA data returned")
+        
+    except Exception as e:
+        print(f"⚠️ NASA API error: {e}, using fallback...")
+        # Fallback to current weather if API fails
+        weather = await get_current_weather(lat, lon)
+        return {
+            "temperature": weather["temperature"],
+            "temp_max": weather["temp_max"],
+            "temp_min": weather["temp_min"],
+            "humidity": weather["humidity"],
+            "wind_speed": weather["wind_speed"],
+            "precipitation": weather["precipitation"],
+            "pressure": weather["pressure"],
+            "specific_humidity": weather["humidity"] / 100 * 10,
+            "radiation": 200.0,
+            "data_source": "🌐 Current Weather Baseline"
+        }
+
+
+async def get_current_weather_data(lat: float, lon: float) -> Dict:
+    """
+    Get current weather data formatted for LSTM model
+    
+    Args:
+        lat: Latitude of location
+        lon: Longitude of location
+        
+    Returns:
+        Weather data dict formatted for LSTM predictions
+    """
+    weather = await get_current_weather(lat, lon)
+    
+    # Format for LSTM model
+    return {
+        "temperature": weather["temperature"],
+        "temp_max": weather["temp_max"],
+        "temp_min": weather["temp_min"],
+        "humidity": weather["humidity"],
+        "wind_speed": weather["wind_speed"],
+        "precipitation": weather["precipitation"],
+        "pressure": weather["pressure"],
+        "specific_humidity": weather["humidity"] / 100 * 10,  # Approximate
+        "radiation": 200.0,  # Default value (not available from API)
+        "data_source": "🌐 OpenWeatherMap API"
+    }
+
+
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: PredictionRequest):
     """
-    Make extreme weather predictions using intelligent data routing
-    - 0-5 days: Uses OpenWeatherMap API forecast data
-    - 6+ months: Uses local continent/hemisphere climate patterns
+    Make extreme weather predictions using LSTM climate model
+    Combines LSTM predictions with real-time weather data
     
     Args:
         request: PredictionRequest with location and date
@@ -755,33 +907,93 @@ async def predict(request: PredictionRequest):
     Returns:
         PredictionResponse with probabilities for each extreme condition
     """
-    if model_loader is None or data_router is None:
-        raise HTTPException(status_code=503, detail="Services not loaded properly")
+    if lstm_loader is None:
+        raise HTTPException(status_code=503, detail="LSTM model not loaded")
     
     try:
-        # Get prediction data from appropriate source
-        print(f"📡 Getting prediction data for ({request.latitude}, {request.longitude}) on {request.date}...")
-        weather_data = data_router.get_prediction_data(
-            request.latitude, 
-            request.longitude, 
-            request.date
-        )
+        # Determine if we should use current weather or seasonal baseline
+        from datetime import datetime, timedelta
+        target_date = datetime.strptime(request.date, '%Y-%m-%d')
+        current_date = datetime.now()
+        days_ahead = (target_date - current_date).days
         
-        print(f"✅ Data source: {weather_data.get('data_source', 'Unknown')}")
+        print(f"📡 Getting weather data for ({request.latitude}, {request.longitude}) on {request.date}...")
+        print(f"   Days ahead: {days_ahead}")
         
-        # Extract extreme weather risk if available
-        if 'extreme_weather_risk' in weather_data:
-            predictions = weather_data['extreme_weather_risk']
-            data_source = weather_data.get('data_source', 'Local Climate Data')
+        # For current date or past dates, use current weather
+        if days_ahead <= 0:
+            print("🌐 Using current weather (target date is today or past)...")
+            weather_data = await get_current_weather_data(request.latitude, request.longitude)
+        # For dates within 1-5 days, try to use weather API forecast
+        elif 1 <= days_ahead <= 5 and data_router is not None:
+            weather_data = data_router.get_prediction_data(
+                request.latitude, 
+                request.longitude, 
+                request.date
+            )
+        # For dates within 1-5 days but no data router, use current weather
+        elif 1 <= days_ahead <= 5:
+            print("⚠️ Data router not available, using current weather...")
+            weather_data = await get_current_weather_data(request.latitude, request.longitude)
+        # For future dates beyond 5 days, use historical baseline from same season
         else:
-            # Generate predictions from weather parameters using heuristics
-            predictions = _generate_predictions_from_weather(weather_data)
-            data_source = weather_data.get('data_source', 'Weather API')
+            print(f"📊 Using historical seasonal baseline for {days_ahead} days ahead...")
+            weather_data = await get_historical_baseline_from_api(request.latitude, request.longitude, request.date)
+        
+        print(f"✅ Data source: {weather_data.get('data_source', 'OpenWeatherMap API')}")
+        
+        # Add location and date to weather data
+        weather_data['latitude'] = request.latitude
+        weather_data['longitude'] = request.longitude
+        weather_data['date'] = request.date
+        
+        # Use LSTM model for predictions if available
+        if lstm_loader.loaded:
+            try:
+                # Get LSTM predictions
+                lstm_output = lstm_loader.predict(weather_data)
+                print(f"🤖 LSTM predictions: Temp anomaly={lstm_output['temperature_anomaly']:.4f}, Precip anomaly={lstm_output['precipitation_anomaly']:.4f}")
+                
+                # HYBRID APPROACH:
+                # - Keep NASA baseline temperature (accurate historical data)
+                # - Use LSTM for precipitation prediction (R²=0.79, good!)
+                # - Use LSTM for extreme weather probabilities
+                
+                # Temperature: Keep NASA baseline (don't apply LSTM anomaly due to low R²=0.32)
+                baseline_temp = weather_data['temperature']
+                print(f"🌡️ Using NASA baseline temp: {baseline_temp:.2f}°C (LSTM R²=0.32 too low)")
+                
+                # Precipitation: Apply LSTM prediction (R²=0.79 is good!)
+                lstm_precip = lstm_output['base_precipitation'] * (1 + lstm_output['precipitation_anomaly'])
+                weather_data['precipitation'] = lstm_precip
+                print(f"💧 LSTM precipitation: {lstm_precip:.2f}mm")
+                
+                # Convert LSTM output to extreme weather probabilities
+                predictions = lstm_loader.convert_to_extreme_weather_predictions(lstm_output, weather_data)
+                data_source = "🤖 LSTM + NASA Hybrid Model"
+                
+            except Exception as lstm_error:
+                print(f"⚠️ LSTM prediction error: {lstm_error}, falling back to heuristics")
+                # Fallback to heuristic predictions
+                if 'extreme_weather_risk' in weather_data:
+                    predictions = weather_data['extreme_weather_risk']
+                    data_source = weather_data.get('data_source', 'Local Climate Data')
+                else:
+                    predictions = _generate_predictions_from_weather(weather_data)
+                    data_source = "Heuristic Model"
+        else:
+            # Fallback if LSTM not loaded
+            if 'extreme_weather_risk' in weather_data:
+                predictions = weather_data['extreme_weather_risk']
+                data_source = weather_data.get('data_source', 'Local Climate Data')
+            else:
+                predictions = _generate_predictions_from_weather(weather_data)
+                data_source = "Heuristic Model"
         
         # Assess risk level
         risk_level = assess_risk_level(predictions)
         
-        # Prepare response
+        # Prepare response with weather data
         response = PredictionResponse(
             location={
                 "latitude": request.latitude,
@@ -791,7 +1003,15 @@ async def predict(request: PredictionRequest):
             predictions=predictions,
             risk_level=risk_level,
             timestamp=datetime.now().isoformat(),
-            data_source=data_source
+            data_source=data_source,
+            weather={
+                "temperature": weather_data.get('temperature'),
+                "temp_max": weather_data.get('temp_max'),
+                "temp_min": weather_data.get('temp_min'),
+                "humidity": weather_data.get('humidity'),
+                "wind_speed": weather_data.get('wind_speed'),
+                "precipitation": weather_data.get('precipitation')
+            }
         )
         
         return response
