@@ -96,6 +96,7 @@ class PredictionResponse(BaseModel):
     risk_level: str
     timestamp: str
     data_source: str
+    weather: Optional[Dict[str, float]] = None  # Add weather info including predicted temp
 
 
 class ForecastRequest(BaseModel):
@@ -767,6 +768,133 @@ async def get_current_weather(lat: float, lon: float):
         raise HTTPException(status_code=500, detail=f"Error fetching weather: {str(e)}")
 
 
+# Cache for NASA POWER historical data (in-memory cache for performance)
+_climate_baseline_cache = {}
+
+async def get_historical_baseline_from_api(lat: float, lon: float, target_date: str) -> Dict:
+    """
+    Get historical climate baseline using NASA POWER API
+    Fetches actual historical averages for the target month from past years
+    Uses caching to improve performance for repeated requests
+    
+    Args:
+        lat: Latitude of location
+        lon: Longitude of location
+        target_date: Target date in YYYY-MM-DD format (future date)
+        
+    Returns:
+        Historical climate data dict for the target month
+    """
+    from datetime import datetime, timedelta
+    
+    target = datetime.strptime(target_date, '%Y-%m-%d')
+    target_month = target.month
+    
+    # Round coordinates for cache key (0.5 degree resolution)
+    lat_rounded = round(lat * 2) / 2  # Round to nearest 0.5
+    lon_rounded = round(lon * 2) / 2
+    cache_key = f"{lat_rounded},{lon_rounded},{target_month}"
+    
+    # Check cache first
+    if cache_key in _climate_baseline_cache:
+        cached_data = _climate_baseline_cache[cache_key]
+        print(f"📦 Using cached baseline for month {target_month}: {cached_data['temperature']:.1f}°C")
+        return cached_data
+    
+    try:
+        print(f"📅 Fetching NASA POWER historical climate for month {target_month}...")
+        
+        # Fetch historical data for target month from previous year
+        # Use 2024 data as reference (most recent complete year)
+        end_date = datetime(2024, target_month, 15)
+        start_date = end_date - timedelta(days=30)  # Get ~1 month of data
+        
+        # Fetch historical NASA data
+        df = NASADataFetcher.fetch_historical_data(
+            latitude=lat,
+            longitude=lon, 
+            end_date_str=end_date.strftime('%Y-%m-%d'),
+            days_back=30
+        )
+        
+        if df is not None and not df.empty:
+            # Calculate average climate conditions for this month
+            avg_temp = df['T2M'].mean()
+            avg_temp_max = df['T2M_MAX'].mean()
+            avg_temp_min = df['T2M_MIN'].mean()
+            avg_humidity = df['RH2M'].mean()
+            avg_wind = df['WS2M'].mean()
+            avg_precip = df['PRECTOTCORR'].mean()
+            avg_pressure = df['PS'].mean() if 'PS' in df.columns else 1013.0
+            
+            print(f"   ✓ NASA POWER: {avg_temp:.1f}°C average for month {target_month}")
+            
+            baseline_data = {
+                "temperature": avg_temp,
+                "temp_max": avg_temp_max,
+                "temp_min": avg_temp_min,
+                "humidity": avg_humidity,
+                "wind_speed": avg_wind,
+                "precipitation": avg_precip,
+                "pressure": avg_pressure,
+                "specific_humidity": avg_humidity / 100 * 10,
+                "radiation": 200.0,
+                "data_source": f"📊 NASA POWER Historical (month {target_month})"
+            }
+            
+            # Cache the result
+            _climate_baseline_cache[cache_key] = baseline_data
+            
+            return baseline_data
+        else:
+            raise Exception("No NASA data returned")
+        
+    except Exception as e:
+        print(f"⚠️ NASA API error: {e}, using fallback...")
+        # Fallback to current weather if API fails
+        weather = await get_current_weather(lat, lon)
+        return {
+            "temperature": weather["temperature"],
+            "temp_max": weather["temp_max"],
+            "temp_min": weather["temp_min"],
+            "humidity": weather["humidity"],
+            "wind_speed": weather["wind_speed"],
+            "precipitation": weather["precipitation"],
+            "pressure": weather["pressure"],
+            "specific_humidity": weather["humidity"] / 100 * 10,
+            "radiation": 200.0,
+            "data_source": "🌐 Current Weather Baseline"
+        }
+
+
+async def get_current_weather_data(lat: float, lon: float) -> Dict:
+    """
+    Get current weather data formatted for LSTM model
+    
+    Args:
+        lat: Latitude of location
+        lon: Longitude of location
+        
+    Returns:
+        Weather data dict formatted for LSTM predictions
+    """
+    weather = await get_current_weather(lat, lon)
+    
+    # Format for LSTM model
+    return {
+        "temperature": weather["temperature"],
+        "temp_max": weather["temp_max"],
+        "temp_min": weather["temp_min"],
+        "humidity": weather["humidity"],
+        "wind_speed": weather["wind_speed"],
+        "precipitation": weather["precipitation"],
+        "pressure": weather["pressure"],
+        "specific_humidity": weather["humidity"] / 100 * 10,  # Approximate
+        "radiation": 200.0,  # Default value (not available from API)
+        "data_source": "🌐 OpenWeatherMap API"
+    }
+
+
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: PredictionRequest):
     """
@@ -779,19 +907,40 @@ async def predict(request: PredictionRequest):
     Returns:
         PredictionResponse with probabilities for each extreme condition
     """
-    if lstm_loader is None or data_router is None:
-        raise HTTPException(status_code=503, detail="Services not loaded properly")
+    if lstm_loader is None:
+        raise HTTPException(status_code=503, detail="LSTM model not loaded")
     
     try:
-        # Get current weather data
-        print(f"📡 Getting weather data for ({request.latitude}, {request.longitude}) on {request.date}...")
-        weather_data = data_router.get_prediction_data(
-            request.latitude, 
-            request.longitude, 
-            request.date
-        )
+        # Determine if we should use current weather or seasonal baseline
+        from datetime import datetime, timedelta
+        target_date = datetime.strptime(request.date, '%Y-%m-%d')
+        current_date = datetime.now()
+        days_ahead = (target_date - current_date).days
         
-        print(f"✅ Data source: {weather_data.get('data_source', 'Unknown')}")
+        print(f"📡 Getting weather data for ({request.latitude}, {request.longitude}) on {request.date}...")
+        print(f"   Days ahead: {days_ahead}")
+        
+        # For current date or past dates, use current weather
+        if days_ahead <= 0:
+            print("🌐 Using current weather (target date is today or past)...")
+            weather_data = await get_current_weather_data(request.latitude, request.longitude)
+        # For dates within 1-5 days, try to use weather API forecast
+        elif 1 <= days_ahead <= 5 and data_router is not None:
+            weather_data = data_router.get_prediction_data(
+                request.latitude, 
+                request.longitude, 
+                request.date
+            )
+        # For dates within 1-5 days but no data router, use current weather
+        elif 1 <= days_ahead <= 5:
+            print("⚠️ Data router not available, using current weather...")
+            weather_data = await get_current_weather_data(request.latitude, request.longitude)
+        # For future dates beyond 5 days, use historical baseline from same season
+        else:
+            print(f"📊 Using historical seasonal baseline for {days_ahead} days ahead...")
+            weather_data = await get_historical_baseline_from_api(request.latitude, request.longitude, request.date)
+        
+        print(f"✅ Data source: {weather_data.get('data_source', 'OpenWeatherMap API')}")
         
         # Add location and date to weather data
         weather_data['latitude'] = request.latitude
@@ -805,9 +954,23 @@ async def predict(request: PredictionRequest):
                 lstm_output = lstm_loader.predict(weather_data)
                 print(f"🤖 LSTM predictions: Temp anomaly={lstm_output['temperature_anomaly']:.4f}, Precip anomaly={lstm_output['precipitation_anomaly']:.4f}")
                 
+                # HYBRID APPROACH:
+                # - Keep NASA baseline temperature (accurate historical data)
+                # - Use LSTM for precipitation prediction (R²=0.79, good!)
+                # - Use LSTM for extreme weather probabilities
+                
+                # Temperature: Keep NASA baseline (don't apply LSTM anomaly due to low R²=0.32)
+                baseline_temp = weather_data['temperature']
+                print(f"🌡️ Using NASA baseline temp: {baseline_temp:.2f}°C (LSTM R²=0.32 too low)")
+                
+                # Precipitation: Apply LSTM prediction (R²=0.79 is good!)
+                lstm_precip = lstm_output['base_precipitation'] * (1 + lstm_output['precipitation_anomaly'])
+                weather_data['precipitation'] = lstm_precip
+                print(f"💧 LSTM precipitation: {lstm_precip:.2f}mm")
+                
                 # Convert LSTM output to extreme weather probabilities
                 predictions = lstm_loader.convert_to_extreme_weather_predictions(lstm_output, weather_data)
-                data_source = "🤖 LSTM Climate Model"
+                data_source = "🤖 LSTM + NASA Hybrid Model"
                 
             except Exception as lstm_error:
                 print(f"⚠️ LSTM prediction error: {lstm_error}, falling back to heuristics")
@@ -830,7 +993,7 @@ async def predict(request: PredictionRequest):
         # Assess risk level
         risk_level = assess_risk_level(predictions)
         
-        # Prepare response
+        # Prepare response with weather data
         response = PredictionResponse(
             location={
                 "latitude": request.latitude,
@@ -840,7 +1003,15 @@ async def predict(request: PredictionRequest):
             predictions=predictions,
             risk_level=risk_level,
             timestamp=datetime.now().isoformat(),
-            data_source=data_source
+            data_source=data_source,
+            weather={
+                "temperature": weather_data.get('temperature'),
+                "temp_max": weather_data.get('temp_max'),
+                "temp_min": weather_data.get('temp_min'),
+                "humidity": weather_data.get('humidity'),
+                "wind_speed": weather_data.get('wind_speed'),
+                "precipitation": weather_data.get('precipitation')
+            }
         )
         
         return response
