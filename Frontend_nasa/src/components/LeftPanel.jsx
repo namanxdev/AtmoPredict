@@ -8,6 +8,9 @@ import { useWeatherData } from '../hooks/useWeatherData';
 export default function LeftPanel({ coords, date, onLocationChange, onDateChange, dataManagerReady }) {
   const { currentWeather, prediction, loading, error } = useWeatherData(coords, date);
 
+  // Use prediction weather data if available (for future dates), otherwise use current weather
+  const displayWeather = prediction?.weather || currentWeather;
+
   return (
     <div style={{
       width: '400px',
@@ -50,7 +53,7 @@ export default function LeftPanel({ coords, date, onLocationChange, onDateChange
       )}
 
       {/* Current Weather */}
-      <CurrentWeather weather={currentWeather} loading={loading} error={error} />
+      <CurrentWeather weather={displayWeather} loading={loading} error={error} />
 
       {/* Model Response */}
       <ModelResponse prediction={prediction} loading={loading} error={error} />
